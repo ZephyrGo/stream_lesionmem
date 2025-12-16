@@ -1,0 +1,112 @@
+# STREAM-LesionMem Configuration
+
+# Model settings
+model:
+  # MedGemma settings
+  medgemma_path: "google/medgemma-4b-it"  # TODO: Replace with real path
+  torch_dtype: "bfloat16"
+  freeze_medgemma: true
+  trust_remote_code: true
+  
+  # Vision tower settings (SigLIP)
+  vision_hidden_size: 1152  # SigLIP hidden size
+  num_vision_tokens: 256    # Patches per image
+  
+  # LM settings
+  lm_hidden_size: 2560      # Gemma hidden size
+
+# Memory bank settings
+memory:
+  num_slots: 16
+  slot_dim: 512
+  similarity_threshold: 0.7
+  top_m: 5                  # Top candidates per frame
+  evidence_topL: 4          # Evidence entries per slot
+  max_evidence_tokens: 32   # Max evidence tokens to cache per slot
+
+# Streaming encoder settings
+streaming:
+  chunk_size: 4             # Frames per encoding chunk
+  sample_frames: 12         # Total frames to sample from video (8-16)
+  min_frames: 8
+  max_frames: 16
+
+# Section router settings
+router:
+  mode: "rule"              # "rule" or "learned"
+  num_sections: 8           # Number of endoscopy sections
+  abnormal_threshold: 0.5
+  
+  # Section names (example for endoscopy)
+  section_names:
+    - "esophagus"
+    - "gastroesophageal_junction"
+    - "cardia"
+    - "fundus"
+    - "body"
+    - "antrum"
+    - "pylorus"
+    - "duodenum"
+
+# Template library settings
+templates:
+  path: "configs/templates.json"
+  top_k: 5                  # Top templates per section
+  abnormal_keywords:
+    - "lesion"
+    - "polyp"
+    - "ulcer"
+    - "erosion"
+    - "bleeding"
+    - "mass"
+    - "tumor"
+    - "abnormal"
+    - "irregular"
+
+# Inference settings
+inference:
+  max_frames: 4             # Max frames for LLM input (HARD CONSTRAINT)
+  max_new_tokens: 512
+  temperature: 0.7
+  top_p: 0.9
+  do_sample: true
+  num_beams: 1
+
+# Training settings
+training:
+  batch_size: 2
+  learning_rate: 1.0e-4
+  weight_decay: 0.01
+  num_epochs: 10
+  warmup_steps: 100
+  gradient_accumulation_steps: 4
+  max_grad_norm: 1.0
+  
+  # Loss weights
+  detection_loss_weight: 1.0
+  router_loss_weight: 1.0
+  generation_loss_weight: 1.0  # Only for abnormal sections
+
+# Data settings
+data:
+  train_jsonl: "data/train_reports.jsonl"
+  val_jsonl: "data/val_reports.jsonl"
+  test_jsonl: "data/test_reports.jsonl"
+  video_dir: "data/videos/"
+  frame_size: [336, 336]    # MedGemma input size
+  num_workers: 4
+
+# Logging settings
+logging:
+  log_dir: "logs/"
+  log_interval: 10
+  save_interval: 500
+  eval_interval: 1000
+  use_wandb: false
+  wandb_project: "stream-lesionmem"
+
+# Self-check settings (optional)
+self_check:
+  enabled: false
+  max_iterations: 2
+  consistency_threshold: 0.8
