@@ -5,7 +5,13 @@ from .router import SectionRouter
 from .composer import ReportComposer
 from .self_check import SelfCheck
 from .stream_lesionmem_model import StreamLesionMemModel
-
+from .losses import (
+    DetectionLoss,
+    RouterLoss,
+    MatchingLoss,
+    MemoryBankLoss,
+    GenerationLoss,
+)
 __all__ = [
     "MedGemmaAdapter",
     "StreamingEncoder",
@@ -15,4 +21,9 @@ __all__ = [
     "ReportComposer",
     "SelfCheck",
     "StreamLesionMemModel",
+    "DetectionLoss",
+    "RouterLoss",
+    "MatchingLoss",
+    "MemoryBankLoss",
+    "GenerationLoss",
 ]

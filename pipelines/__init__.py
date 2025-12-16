@@ -2,10 +2,9 @@
 Pipelines for STREAM-LesionMem.
 """
 
-from .infer_report import InferenceReportPipeline
-from .train_memory import TrainingPipeline
+from .train_memory import TrainingPipeline, TrainConfig
 
 __all__ = [
-    "InferenceReportPipeline",
     "TrainingPipeline",
+    "TrainConfig",
 ]
