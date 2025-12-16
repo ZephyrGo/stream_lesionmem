@@ -436,11 +436,17 @@ class TrainingPipeline:
         all_slot_section_ids = []
         all_slot_confidences = []
         
+        # Get num_patches from model config (default 256 for dummy, varies for real model)
+        num_patches = getattr(self.model.adapter, 'num_vision_tokens', 256)
+        
         for b in range(B):
             # Get single sample
             sample_frames = frames[b:b+1]  # [1, K, 3, H, W]
             sample_f2s = frame2section[b]
             sample_mask = frame_masks[b]  # [K]
+            
+            # Count valid frames for this sample
+            valid_k = sample_mask.sum().item()
             
             # Convert frame2section to list
             f2s_list = [sample_f2s.get(i, 0) for i in range(K)]
@@ -448,9 +454,11 @@ class TrainingPipeline:
             # Reset memory
             self.model.memory.reset()
             
+            # Pre-allocate detection confidence tensor with fixed size K
+            detection_conf_b = torch.zeros(1, K, num_patches, device=device, dtype=torch.float32)
+            
             # Encode and process frames
             frame_tokens_list = []
-            detection_conf_list = []
             
             for lm_tokens, chunk_indices in self.model.encoder.encode_streaming(
                 sample_frames,
@@ -459,9 +467,16 @@ class TrainingPipeline:
                 # lm_tokens: [1, chunk_size, num_patches, lm_hidden]
                 frame_tokens_list.append(lm_tokens)
                 
+                # Update num_patches from actual output if different
+                actual_num_patches = lm_tokens.shape[2]
+                if actual_num_patches != num_patches:
+                    # Reallocate with correct size
+                    detection_conf_b = torch.zeros(1, K, actual_num_patches, device=device, dtype=torch.float32)
+                    num_patches = actual_num_patches
+                
                 # Process each frame in chunk through memory
                 for i, global_idx in enumerate(chunk_indices):
-                    if not sample_mask[global_idx]:
+                    if global_idx >= K or not sample_mask[global_idx]:
                         continue
                     
                     frame_tokens = lm_tokens[:, i]  # [1, num_patches, lm_hidden]
@@ -469,7 +484,8 @@ class TrainingPipeline:
                     
                     # Detect candidates
                     detection = self.model.memory.detect(frame_tokens)
-                    detection_conf_list.append(detection.confidences)  # [1, num_patches]
+                    # Store detection confidence at the correct position
+                    detection_conf_b[0, global_idx] = detection.confidences[0]  # [num_patches]
                     
                     # Process frame in memory
                     self.model.memory.process_frame(
@@ -486,13 +502,6 @@ class TrainingPipeline:
             section_logits_b, abnormal_scores_b = self._get_router_predictions(
                 all_lm_tokens, f2s_list
             )
-            
-            # Stack detection confidences
-            if detection_conf_list:
-                detection_conf_b = torch.cat(detection_conf_list, dim=0)  # [K, num_patches]
-                detection_conf_b = detection_conf_b.unsqueeze(0)  # [1, K, num_patches]
-            else:
-                detection_conf_b = torch.zeros(1, K, 256, device=device)
             
             all_detection_conf.append(detection_conf_b)
             all_section_logits.append(section_logits_b)
